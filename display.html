@@ -68,7 +68,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const stateRef = doc(db, "pickupBoard", "queue");
-const MAX_ACTIVE = 6;
+const MAX_ACTIVE = 30;
 
 function escapeHtml(str){
   const d = document.createElement('div');
