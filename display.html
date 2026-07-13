@@ -53,4 +53,85 @@
     </div>
   </div>
   <div class="grid" id="d-grid"></div>
-  <div
+  <div class="waiting-bar" id="d-waiting"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBpcNU0ANe3waJf5zfbnIdSIVRAuyGmz0A",
+  authDomain: "pick-up-16a8e.firebaseapp.com",
+  projectId: "pick-up-16a8e",
+  storageBucket: "pick-up-16a8e.firebasestorage.app",
+  messagingSenderId: "484808992036",
+  appId: "1:484808992036:web:37376a12abf4d30bbbbfb1"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const stateRef = doc(db, "pickupBoard", "queue");
+const MAX_ACTIVE = 30;
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function render(state){
+  const grid = document.getElementById('d-grid');
+  grid.innerHTML = '';
+  const active = state.active || [];
+  const waiting = state.waiting || [];
+
+  for(let i=0;i<MAX_ACTIVE;i++){
+    const entry = active[i];
+    if(entry){
+      const card = document.createElement('div');
+      card.className = 'name-card';
+      card.innerHTML = `<div><div class="nm">${escapeHtml(entry.name)}</div>${entry.code?`<div class="cls">${escapeHtml(entry.code)}</div>`:''}</div>
+        <button class="clear-btn" data-id="${entry.id}">✓ Picked Up</button>`;
+      grid.appendChild(card);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'empty-slot';
+      empty.textContent = '—';
+      grid.appendChild(empty);
+    }
+  }
+  grid.querySelectorAll('.clear-btn').forEach(btn=>{
+    btn.onclick = ()=> clearEntry(btn.dataset.id, state);
+  });
+
+  const waitBar = document.getElementById('d-waiting');
+  waitBar.textContent = waiting.length
+    ? `Waiting (${waiting.length}): ` + waiting.map(e=>e.name).join(', ')
+    : 'No one waiting in the queue.';
+}
+
+async function clearEntry(id, state){
+  const pickedEntry = (state.active || []).find(e=>e.id === id);
+  const active = (state.active || []).filter(e=>e.id !== id);
+  const waiting = [...(state.waiting || [])];
+  if(waiting.length) active.push(waiting.shift());
+  const done = [...(state.done || [])];
+  if(pickedEntry) done.unshift({ ...pickedEntry, pickedAt: Date.now() });
+  await setDoc(stateRef, { active, waiting, done });
+}
+
+document.getElementById('d-clearall').onclick = async ()=>{
+  if(!confirm('Clear the entire queue? / مسح الطابور بالكامل؟')) return;
+  await setDoc(stateRef, { active: [], waiting: [] }, { merge: true });
+};
+
+onSnapshot(stateRef, (snap)=>{
+  document.getElementById('status').textContent = 'live';
+  render(snap.exists() ? snap.data() : { active: [], waiting: [] });
+}, (err)=>{
+  console.error(err);
+  document.getElementById('status').textContent = 'connection error';
+});
+</script>
+</body>
+</html>
