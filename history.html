@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Picked Up History</title>
+<style>
+  :root{ --bg:#0f172a; --panel:#1e293b; --accent:#22c55e; --warn:#ef4444; --muted:#94a3b8; --text:#f1f5f9; }
+  *{box-sizing:border-box;}
+  body{ margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:24px; }
+  .disp-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;}
+  .disp-header h1{margin:0; font-size:1.6rem;}
+  .disp-header .sub{color:var(--muted); font-size:0.95rem; margin-top:2px;}
+  .header-actions{display:flex; gap:10px;}
+  .back-link{
+    text-decoration:none; background:transparent; border:2px solid #334155; color:var(--text);
+    padding:10px 16px; border-radius:10px; font-weight:600; display:inline-block;
+  }
+  .clear-all{
+    background:transparent; border:2px solid var(--warn); color:var(--warn);
+    padding:10px 16px; border-radius:10px; font-weight:600; cursor:pointer;
+  }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:18px; }
+  .name-card{
+    background:var(--panel); border-radius:18px; padding:26px;
+    display:flex; flex-direction:column; justify-content:space-between;
+    border:1px solid #334155; min-height:150px; opacity:0.85;
+  }
+  .name-card .nm{font-size:2rem; font-weight:800; line-height:1.15; word-break:break-word;}
+  .name-card .cls{color:var(--muted); font-size:1rem; margin-top:4px;}
+  .name-card .time{color:var(--muted); font-size:0.85rem; margin-top:6px;}
+  .name-card .restore-btn{
+    align-self:flex-end; margin-top:14px; background:transparent;
+    color:var(--accent); border:2px solid var(--accent); padding:10px 16px; border-radius:10px;
+    font-weight:700; cursor:pointer;
+  }
+  .empty-msg{color:var(--muted); text-align:center; padding:60px 20px; font-size:1.1rem;}
+  .status{position:fixed; top:10px; right:16px; font-size:0.75rem; color:var(--muted);}
+</style>
+</head>
+<body>
+  <div class="status" id="status">connecting...</div>
+  <div class="disp-header">
+    <div>
+      <h1>Picked Up</h1>
+      <div class="sub">تم الاستلام — tap Restore to put a name back in the queue</div>
+    </div>
+    <div class="header-actions">
+      <a href="display.html" class="back-link">← Back to Queue</a>
+      <button class="clear-all" id="h-clearall">Clear All</button>
+    </div>
+  </div>
+  <div class="grid" id="h-grid"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBpcNU0ANe3waJf5zfbnIdSIVRAuyGmz0A",
+  authDomain: "pick-up-16a8e.firebaseapp.com",
+  projectId: "pick-up-16a8e",
+  storageBucket: "pick-up-16a8e.firebasestorage.app",
+  messagingSenderId: "484808992036",
+  appId: "1:484808992036:web:37376a12abf4d30bbbbfb1"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const stateRef = doc(db, "pickupBoard", "queue");
+const MAX_ACTIVE = 30;
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function formatTime(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function render(state){
+  const grid = document.getElementById('h-grid');
+  grid.innerHTML = '';
+  const done = state.done || [];
+
+  if(!done.length){
+    grid.innerHTML = '<div class="empty-msg">No one has been picked up yet.</div>';
+    return;
+  }
+
+  done.forEach(entry=>{
+    const card = document.createElement('div');
+    card.className = 'name-card';
+    card.innerHTML = `<div>
+        <div class="nm">${escapeHtml(entry.name)}</div>
+        ${entry.code?`<div class="cls">${escapeHtml(entry.code)}</div>`:''}
+        <div class="time">Picked up ${formatTime(entry.pickedAt)}</div>
+      </div>
+      <button class="restore-btn" data-id="${entry.id}">↩ Restore</button>`;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('.restore-btn').forEach(btn=>{
+    btn.onclick = ()=> restoreEntry(btn.dataset.id, state);
+  });
+}
+
+async function restoreEntry(id, state){
+  const done = (state.done || []).filter(e=>e.id !== id);
+  const restored = (state.done || []).find(e=>e.id === id);
+  const active = [...(state.active || [])];
+  const waiting = [...(state.waiting || [])];
+  if(restored){
+    if(active.length < MAX_ACTIVE) active.push(restored);
+    else waiting.push(restored);
+  }
+  await setDoc(stateRef, { active, waiting, done });
+}
+
+document.getElementById('h-clearall').onclick = async ()=>{
+  if(!confirm('Clear the picked-up history? / مسح سجل الاستلام؟')) return;
+  await setDoc(stateRef, { done: [] }, { merge: true });
+};
+
+onSnapshot(stateRef, (snap)=>{
+  document.getElementById('status').textContent = 'live';
+  render(snap.exists() ? snap.data() : { done: [] });
+}, (err)=>{
+  console.error(err);
+  document.getElementById('status').textContent = 'connection error';
+});
+</script>
+</body>
+</html>
