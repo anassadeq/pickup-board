@@ -44,8 +44,6 @@
       <h2>Enter child's name<span class="ar">أدخل اسم الطفل</span></h2>
       <label>Child's Name <span class="ar">اسم الطفل</span></label>
       <input id="p-name" type="text" placeholder="e.g. Layla Ahmad">
-      <label>Class Code <span class="ar">رمز الصف</span></label>
-      <input id="p-code" type="text" placeholder="e.g. KG2-A">
       <button id="p-submit">Send / إرسال</button>
     </div>
     <div class="confirm" id="p-confirm">
@@ -74,16 +72,14 @@ const MAX_ACTIVE = 30;
 
 document.getElementById('p-submit').onclick = async ()=>{
   const nameInput = document.getElementById('p-name');
-  const codeInput = document.getElementById('p-code');
   const name = nameInput.value.trim();
-  const code = codeInput.value.trim();
   if(!name){ alert('Please enter a name / الرجاء إدخال الاسم'); return; }
 
   const btn = document.getElementById('p-submit');
   btn.disabled = true; btn.textContent = 'Sending...';
 
   try{
-    const entry = { id: Date.now()+'-'+Math.random().toString(36).slice(2,7), name, code, ts: Date.now() };
+    const entry = { id: Date.now()+'-'+Math.random().toString(36).slice(2,7), name, ts: Date.now() };
     const snap = await getDoc(stateRef);
     const state = snap.exists() ? snap.data() : { active: [], waiting: [] };
     if(!state.active) state.active = [];
