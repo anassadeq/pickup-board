@@ -42,8 +42,10 @@
   <div class="card">
     <div id="form-view">
       <h2>Enter child's name<span class="ar">أدخل اسم الطفل</span></h2>
-      <label>Child's Name <span class="ar">اسم الطفل</span></label>
-      <input id="p-name" type="text" placeholder="e.g. Layla Ahmad">
+      <label>First Name <span class="ar">الاسم الأول</span></label>
+      <input id="p-name" type="text" placeholder="e.g. Layla">
+      <label>Surname <span class="ar">اللقب</span></label>
+      <input id="p-surname" type="text" placeholder="e.g. Ahmad">
       <button id="p-submit">Send / إرسال</button>
     </div>
     <div class="confirm" id="p-confirm">
@@ -72,8 +74,11 @@ const MAX_ACTIVE = 30;
 
 document.getElementById('p-submit').onclick = async ()=>{
   const nameInput = document.getElementById('p-name');
-  const name = nameInput.value.trim();
-  if(!name){ alert('Please enter a name / الرجاء إدخال الاسم'); return; }
+  const surnameInput = document.getElementById('p-surname');
+  const firstName = nameInput.value.trim();
+  const surname = surnameInput.value.trim();
+  if(!firstName){ alert('Please enter a name / الرجاء إدخال الاسم'); return; }
+  const name = surname ? `${firstName} ${surname}` : firstName;
 
   const btn = document.getElementById('p-submit');
   btn.disabled = true; btn.textContent = 'Sending...';
