@@ -55,7 +55,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBpcNU0ANe3waJf5zfbnIdSIVRAuyGmz0A",
@@ -106,25 +106,33 @@ function render(state){
   });
 
   grid.querySelectorAll('.restore-btn').forEach(btn=>{
-    btn.onclick = ()=> restoreEntry(btn.dataset.id, state);
+    btn.onclick = ()=> restoreEntry(btn.dataset.id);
   });
 }
 
-async function restoreEntry(id, state){
-  const done = (state.done || []).filter(e=>e.id !== id);
-  const restored = (state.done || []).find(e=>e.id === id);
-  const active = [...(state.active || [])];
-  const waiting = [...(state.waiting || [])];
-  if(restored){
-    if(active.length < MAX_ACTIVE) active.push(restored);
-    else waiting.push(restored);
-  }
-  await setDoc(stateRef, { active, waiting, done });
+async function restoreEntry(id){
+  await runTransaction(db, async (transaction)=>{
+    const snap = await transaction.get(stateRef);
+    const state = snap.exists() ? snap.data() : { active: [], waiting: [], done: [] };
+    const done = (state.done || []).filter(e=>e.id !== id);
+    const restored = (state.done || []).find(e=>e.id === id);
+    const active = [...(state.active || [])];
+    const waiting = [...(state.waiting || [])];
+    if(restored){
+      if(active.length < MAX_ACTIVE) active.push(restored);
+      else waiting.push(restored);
+    }
+    transaction.set(stateRef, { ...state, active, waiting, done });
+  });
 }
 
 document.getElementById('h-clearall').onclick = async ()=>{
   if(!confirm('Clear the picked-up history? / مسح سجل الاستلام؟')) return;
-  await setDoc(stateRef, { done: [] }, { merge: true });
+  await runTransaction(db, async (transaction)=>{
+    const snap = await transaction.get(stateRef);
+    const state = snap.exists() ? snap.data() : {};
+    transaction.set(stateRef, { ...state, done: [] });
+  });
 };
 
 onSnapshot(stateRef, (snap)=>{
