@@ -56,7 +56,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBpcNU0ANe3waJf5zfbnIdSIVRAuyGmz0A",
@@ -85,13 +85,15 @@ document.getElementById('p-submit').onclick = async ()=>{
 
   try{
     const entry = { id: Date.now()+'-'+Math.random().toString(36).slice(2,7), name, ts: Date.now() };
-    const snap = await getDoc(stateRef);
-    const state = snap.exists() ? snap.data() : { active: [], waiting: [] };
-    if(!state.active) state.active = [];
-    if(!state.waiting) state.waiting = [];
-    if(state.active.length < MAX_ACTIVE) state.active.push(entry);
-    else state.waiting.push(entry);
-    await setDoc(stateRef, state);
+    await runTransaction(db, async (transaction)=>{
+      const snap = await transaction.get(stateRef);
+      const state = snap.exists() ? snap.data() : { active: [], waiting: [] };
+      if(!state.active) state.active = [];
+      if(!state.waiting) state.waiting = [];
+      if(state.active.length < MAX_ACTIVE) state.active.push(entry);
+      else state.waiting.push(entry);
+      transaction.set(stateRef, state);
+    });
 
     document.getElementById('form-view').style.display = 'none';
     document.getElementById('p-confirm').style.display = 'block';
