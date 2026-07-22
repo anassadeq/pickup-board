@@ -57,7 +57,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBpcNU0ANe3waJf5zfbnIdSIVRAuyGmz0A",
@@ -101,7 +101,7 @@ function render(state){
     }
   }
   grid.querySelectorAll('.clear-btn').forEach(btn=>{
-    btn.onclick = ()=> clearEntry(btn.dataset.id, state);
+    btn.onclick = ()=> clearEntry(btn.dataset.id);
   });
 
   const waitBar = document.getElementById('d-waiting');
@@ -110,19 +110,27 @@ function render(state){
     : 'No one waiting in the queue.';
 }
 
-async function clearEntry(id, state){
-  const pickedEntry = (state.active || []).find(e=>e.id === id);
-  const active = (state.active || []).filter(e=>e.id !== id);
-  const waiting = [...(state.waiting || [])];
-  if(waiting.length) active.push(waiting.shift());
-  const done = [...(state.done || [])];
-  if(pickedEntry) done.unshift({ ...pickedEntry, pickedAt: Date.now() });
-  await setDoc(stateRef, { active, waiting, done });
+async function clearEntry(id){
+  await runTransaction(db, async (transaction)=>{
+    const snap = await transaction.get(stateRef);
+    const state = snap.exists() ? snap.data() : { active: [], waiting: [], done: [] };
+    const pickedEntry = (state.active || []).find(e=>e.id === id);
+    const active = (state.active || []).filter(e=>e.id !== id);
+    const waiting = [...(state.waiting || [])];
+    if(waiting.length) active.push(waiting.shift());
+    const done = [...(state.done || [])];
+    if(pickedEntry) done.unshift({ ...pickedEntry, pickedAt: Date.now() });
+    transaction.set(stateRef, { ...state, active, waiting, done });
+  });
 }
 
 document.getElementById('d-clearall').onclick = async ()=>{
   if(!confirm('Clear the entire queue? / مسح الطابور بالكامل؟')) return;
-  await setDoc(stateRef, { active: [], waiting: [] }, { merge: true });
+  await runTransaction(db, async (transaction)=>{
+    const snap = await transaction.get(stateRef);
+    const state = snap.exists() ? snap.data() : {};
+    transaction.set(stateRef, { ...state, active: [], waiting: [] });
+  });
 };
 
 onSnapshot(stateRef, (snap)=>{
